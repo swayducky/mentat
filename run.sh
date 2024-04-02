@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+CWD="$(pwd)"
+
 # Transform arguments into their real paths
 real_args=()
 for arg in "$@"
@@ -15,11 +17,13 @@ export PYTHONPATH=$(realpath '.')
 
 source .venv/bin/activate
 
+cd $CWD
+
 if [ ${#real_args[@]} -eq 0 ]
 then
-CMD="python -m mentat.app"
+CMD="python -m mentat"
 else
-CMD="python -m mentat.app$(printf ' %q' "${real_args[@]}")"
+CMD="python -m mentat$(printf ' %q' "${real_args[@]}")"
 fi
 
 echo "== Running: $CMD"
