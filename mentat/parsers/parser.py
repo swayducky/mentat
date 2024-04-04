@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import AsyncIterator
 
 import attr
-from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.completion_create_params import ResponseFormat
 
 from mentat.code_file_manager import CodeFileManager
@@ -48,7 +47,7 @@ class Parser(ABC):
     def response_format(self) -> ResponseFormat:
         return ResponseFormat(type="text")
 
-    async def stream_and_parse_llm_response(self, response: AsyncIterator[ChatCompletionChunk]) -> ParsedLLMResponse:
+    async def stream_and_parse_llm_response(self, response: AsyncIterator[str]) -> ParsedLLMResponse:
         """
         This general parsing structure relies on the assumption that all formats require three types of lines:
         1. 'conversation' lines, which are streamed as they come,
@@ -383,3 +382,6 @@ class Parser(ABC):
         parsed_response = await self.stream_and_parse_llm_response(async_iter_response)
         self._silence_printer = False
         return parsed_response
+
+    def file_edits_to_llm_message(self, parsedLLMResponse: ParsedLLMResponse) -> str:
+        raise NotImplementedError()
