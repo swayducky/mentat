@@ -4,12 +4,14 @@ import json
 from argparse import ArgumentParser, Namespace
 from json import JSONDecodeError
 from pathlib import Path
+from typing import Optional
 
 import attr
 from attr import converters, validators
+from spice.models import TextModel, models
+from spice.spice import EmbeddingModel
 
 from mentat.git_handler import get_git_root_for_path
-from mentat.llm_api_handler import known_models
 from mentat.parsers.parser import Parser
 from mentat.parsers.parser_map import parser_map
 from mentat.session_context import SESSION_CONTEXT
@@ -36,15 +38,15 @@ class Config:
     # Model specific settings
     model: str = attr.field(
         default="gpt-4-0125-preview",
-        metadata={"auto_completions": list(known_models.keys())},
+        metadata={"auto_completions": [model.name for model in models if isinstance(model, TextModel)]},
     )
-    feature_selection_model: str = attr.field(
-        default="gpt-4-1106-preview",
-        metadata={"auto_completions": list(known_models.keys())},
-    )
+    provider: Optional[str] = attr.field(default=None, metadata={"auto_completions": ["openai", "anthropic", "azure"]})
     embedding_model: str = attr.field(
-        default="text-embedding-ada-002",
-        metadata={"auto_completions": [model.name for model in known_models.values() if model.embedding_model]},
+        default="text-embedding-3-large",
+        metadata={"auto_completions": [model.name for model in models if isinstance(model, EmbeddingModel)]},
+    )
+    embedding_provider: Optional[str] = attr.field(
+        default=None, metadata={"auto_completions": ["openai", "anthropic", "azure"]}
     )
     temperature: float = attr.field(default=0.2, converter=float, validator=[validators.le(1), validators.ge(0)])
 
@@ -63,14 +65,14 @@ class Config:
     token_buffer: int = attr.field(
         default=1000,
         metadata={
-            "description": ("The amount of tokens to always be reserved as a buffer for user and" " model messages."),
+            "description": ("The amount of tokens to always be reserved as a buffer for user and model messages."),
         },
     )
     parser: Parser = attr.field(  # pyright: ignore
         default="block",
         metadata={
             "description": (
-                "The format for the LLM to write code in. You probably don't want to" " mess with this setting."
+                "The format for the LLM to write code in. You probably don't want to mess with this setting."
             ),
             "auto_completions": list(parser_map.keys()),
         },
@@ -121,21 +123,6 @@ class Config:
                 " context. Adds this many tokens to context each request."
             ),
             "abbreviation": "a",
-            "const": 5000,
-        },
-        converter=int,
-        validator=validators.ge(0),  # pyright: ignore
-    )
-    llm_feature_filter: int = attr.field(  # pyright: ignore
-        default=0,
-        metadata={
-            "description": (
-                "Send this many tokens of auto-context-selected code files to an LLM"
-                " along with the user_prompt to post-select only files which are"
-                " relevant to the task. Post-files will then be sent to the LLM again"
-                " to respond to the user's prompt."
-            ),
-            "abbreviation": "l",
             "const": 5000,
         },
         converter=int,
@@ -227,7 +214,7 @@ class Config:
                 try:
                     config = json.load(config_file)
                 except JSONDecodeError:
-                    self.error(f"Warning: Config {path} contains invalid json; ignoring user" " configuration file")
+                    self.error(f"Warning: Config {path} contains invalid json; ignoring user configuration file")
                     return
             for field in config:
                 if hasattr(self, field):

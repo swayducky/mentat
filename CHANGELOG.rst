@@ -3,6 +3,29 @@ Changelog
 
 In this changelog focus on user facing highlights and stick to the format. This information will be used to motivate users to upgrade or after upgrading to inform them of features that might otherwise not be very discoverable.
 
+`1.0.18 <https://pypi.org/project/mentat/1.0.18/>`__
+--------------------------------------------------
+
+- Bug fixes and dependency updates
+
+`1.0.17 <https://pypi.org/project/mentat/1.0.17/>`__
+--------------------------------------------------
+
+- Fix requirement conflict for numpy
+
+`1.0.16 <https://pypi.org/project/mentat/1.0.16/>`__
+--------------------------------------------------
+
+- Always use the latest patch-level versions of Spice and Ragdaemon
+
+`1.0.15 <https://pypi.org/project/mentat/1.0.15/>`__
+--------------------------------------------------
+
+- Improved auto-context selection and generation
+- Improved token counting, cost tracking, and message conversion for Anthropic models
+- Fixed vision inputs with Anthropic models
+- Switched default model to gpt-4-turbo
+
 `1.0.14 <https://pypi.org/project/mentat/1.0.14/>`__
 --------------------------------------------------
 

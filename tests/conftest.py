@@ -5,7 +5,7 @@ import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -19,7 +19,6 @@ from mentat.code_context import CodeContext
 from mentat.code_file_manager import CodeFileManager
 from mentat.config import Config, config_file_name
 from mentat.conversation import Conversation
-from mentat.cost_tracker import CostTracker
 from mentat.llm_api_handler import LlmApiHandler
 from mentat.parsers.streaming_printer import StreamingPrinter
 from mentat.sampler.sampler import Sampler
@@ -57,6 +56,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "uitest: run ui-tests that get evaluated by humans")
     config.addinivalue_line("markers", "clear_testbed: create a testbed without any existing files")
     config.addinivalue_line("markers", "no_git_testbed: create a testbed without git")
+    config.addinivalue_line("markers", "ragdaemon: DON'T mock the daemon in the testbed")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -98,7 +98,7 @@ def mock_call_llm_api(mocker):
     completion_mock = mocker.patch.object(LlmApiHandler, "call_llm_api")
 
     def wrap_unstreamed_string(value):
-        return SpiceResponse(SpiceCallArgs("gpt-3.5-turbo", [], False), value, 1, 0, 0, True)
+        return SpiceResponse(SpiceCallArgs("gpt-3.5-turbo", [], False), value, 1, 0, 0, True, 1)
 
     def wrap_streamed_strings(values):
         class MockStreamingSpiceResponse:
@@ -115,7 +115,7 @@ def mock_call_llm_api(mocker):
                 return values[self.cur_value - 1]
 
             def current_response(self):
-                return SpiceResponse(SpiceCallArgs("gpt-3.5-turbo", [], True), "".join(values), 1, 0, 0, True)
+                return SpiceResponse(SpiceCallArgs("gpt-3.5-turbo", [], True), "".join(values), 1, 0, 0, True, 1)
 
         mock_spice_response = MockStreamingSpiceResponse()
         return mock_spice_response
@@ -131,7 +131,7 @@ def mock_call_llm_api(mocker):
     completion_mock.set_unstreamed_values = set_unstreamed_values
 
     def set_return_values(values):
-        async def call_llm_api_mock(messages, model, stream, response_format="unused"):
+        async def call_llm_api_mock(messages, model, provider, stream, response_format="unused"):
             value = call_llm_api_mock.values.pop()
             if stream:
                 return wrap_streamed_strings([value])
@@ -144,17 +144,6 @@ def mock_call_llm_api(mocker):
     completion_mock.set_return_values = set_return_values
 
     return completion_mock
-
-
-@pytest.fixture(scope="function")
-def mock_call_embedding_api(mocker):
-    embedding_mock = mocker.patch.object(LlmApiHandler, "call_embedding_api")
-
-    def set_embedding_values(value):
-        embedding_mock.return_value = value
-
-    embedding_mock.set_embedding_values = set_embedding_values
-    return embedding_mock
 
 
 ### Auto-used fixtures
@@ -181,8 +170,6 @@ def mock_session_context(temp_testbed):
     """
     stream = SessionStream()
 
-    cost_tracker = CostTracker()
-
     config = Config()
 
     llm_api_handler = LlmApiHandler()
@@ -204,7 +191,6 @@ def mock_session_context(temp_testbed):
         Path.cwd(),
         stream,
         llm_api_handler,
-        cost_tracker,
         config,
         code_context,
         code_file_manager,
@@ -244,6 +230,9 @@ def add_permissions(func, path, exc_info):
     If the error is due to an access error (read only file)
     it attempts to add write permission and then retries.
 
+    If the error is because the file is being used by another process,
+    it retries after a short delay.
+
     If the error is for another reason it re-raises the error.
     """
 
@@ -257,7 +246,7 @@ def add_permissions(func, path, exc_info):
 
 
 @pytest.fixture(autouse=True)
-def temp_testbed(monkeypatch, get_marks):
+def temp_testbed(mocker, monkeypatch, get_marks):
     # Allow us to run tests from any directory
     base_dir = Path(__file__).parent.parent
 
@@ -286,6 +275,9 @@ def temp_testbed(monkeypatch, get_marks):
             run_git_command(temp_testbed, "add", ".")
             run_git_command(temp_testbed, "commit", "-m", "add testbed")
 
+    if "ragdaemon" not in get_marks:
+        mocker.patch("ragdaemon.daemon.Daemon.update", side_effect=AsyncMock())
+
     # necessary to undo chdir before calling rmtree, or it fails on windows
     with monkeypatch.context() as m:
         m.chdir(temp_testbed)
@@ -304,3 +296,8 @@ def mock_user_config(mocker):
 @pytest.fixture(autouse=True)
 def mock_sleep_time(mocker):
     mocker.patch.object(StreamingPrinter, "sleep_time", new=lambda self: 0)
+
+
+@pytest.fixture(autouse=True)
+def mock_api_key():
+    os.environ["OPENAI_API_KEY"] = "fake_testing_key"

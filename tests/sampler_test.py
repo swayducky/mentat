@@ -187,7 +187,7 @@ test_sample = {
     "message_history": [],
     "message_prompt": "Add a sha1 function to utils.py",
     "message_edit": (
-        "I will add a new sha1 function to the `utils.py` file.\n\nSteps:\n1." " Add the sha1 function to `utils.py`."
+        "I will add a new sha1 function to the `utils.py` file.\n\nSteps:\n1. Add the sha1 function to `utils.py`."
     ),
     "context": ["mentat/utils.py"],
     "diff_edit": (
@@ -202,8 +202,9 @@ test_sample = {
 }
 
 
+@pytest.mark.ragdaemon
 @pytest.mark.asyncio
-async def test_sample_eval(mock_call_llm_api):
+async def test_sample_eval(temp_testbed, mock_call_llm_api):
     parsedLLMResponse = GitParser().parse_llm_response(test_sample["diff_edit"])
     edit_message = BlockParser().file_edits_to_llm_message(parsedLLMResponse)
     mock_call_llm_api.set_streamed_values(
